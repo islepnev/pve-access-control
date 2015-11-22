@@ -20,8 +20,28 @@ sub properties {
 	    optional => 1,
 	    maxLength => 256,
 	},
+	bind_dn => {
+	    description => "LDAP bind DN",
+	    type => 'string',
+	    pattern => '\w+=[^,]+(,\s*\w+=[^,]+)*',
+	    optional => 1,
+	    maxLength => 256,
+	},
+	bind_pw => {
+	    description => "LDAP bind password",
+	    type => 'string',
+	    optional => 1,
+	    maxLength => 256,
+	},
 	user_attr => {
 	    description => "LDAP user attribute name",
+	    type => 'string',
+	    pattern => '\S{2,}',
+	    optional => 1,
+	    maxLength => 256,
+	},
+	filter => {
+	    description => "LDAP search filter",
 	    type => 'string',
 	    pattern => '\S{2,}',
 	    optional => 1,
@@ -35,7 +55,10 @@ sub options {
 	server1 => {},
 	server2 => { optional => 1 },
 	base_dn => {},
+	bind_dn => { optional => 1 },
+	bind_pw => { optional => 1 },
 	user_attr => {},
+	filter => { optional => 1 },
 	port => { optional => 1 },
 	secure => { optional => 1 },
 	default => { optional => 1 },
@@ -53,7 +76,16 @@ my $authenticate_user_ldap = sub {
     my $conn_string = "$scheme://${server}:$port";
 
     my $ldap = Net::LDAP->new($conn_string, verify => 'none') || die "$@\n";
+    if ($config->{bind_dn} ) {
+      my $res = $ldap->bind( $config->{bind_dn}, password => $config->{bind_pw} );
+      my $code = $res->code();
+      my $err = $res->error;
+      die "Error during initial bind: $err\n" if ($code);
+    }
     my $search = $config->{user_attr} . "=" . $username;
+    if ($config->{filter} ) {
+        $search = '(&(' . $search . ')(' . $config->{filter} . '))';
+    }
     my $result = $ldap->search( base    => "$config->{base_dn}",
 				scope   => "sub",
 				filter  => "$search",
